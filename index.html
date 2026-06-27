@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Block Blast AI - ULTRA PRO V3 (Perfect L-Shapes)</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #121619; color: #ecf0f1; margin: 10px; display: flex; flex-direction: column; align-items: center; user-select: none; }
+        h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+        .subtitle { font-size: 12px; color: #95a5a6; margin-bottom: 8px; }
+        
+        .container { display: flex; gap: 20px; background: #1e2429; padding: 18px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.6); max-width: 1500px; }
+        
+        /* 盤面エリア */
+        .board-wrapper { display: flex; flex-direction: column; align-items: center; }
+        .grid { display: grid; grid-template-columns: repeat(8, 45px); grid-template-rows: repeat(8, 45px); gap: 2px; background: #2c3e50; padding: 6px; border-radius: 8px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .bc { width: 45px; height: 45px; background: #34495e; border-radius: 5px; cursor: crosshair; transition: background 0.1s; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 20px; color: rgba(255,255,255,0.9); }
+        
+        .bc.filled { background: #e74c3c; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3); }
+        .bc.hint-1 { background: #2ecc71; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3); animation: pop 0.2s ease-out; } 
+        .bc.hint-2 { background: #f1c40f; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3); animation: pop 0.2s ease-out; } 
+        .bc.hint-3 { background: #3498db; box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3); animation: pop 0.2s ease-out; } 
+        
+        @keyframes pop { 0% { transform: scale(0.8); } 100% { transform: scale(1); } }
+
+        /* コントロールエリア */
+        .controls { width: 920px; display: flex; flex-direction: column; gap: 10px; }
+        .bank-title { font-weight: bold; font-size: 13px; color: #bdc3c7; border-bottom: 2px solid #34495e; padding-bottom: 3px; margin-top: 2px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* 高度な盤面状況データ表示用のスタイル */
+        .status-dashboard { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 5px; }
+        .status-card { background: #161a1d; border: 1px solid #2c3e50; padding: 6px 10px; border-radius: 6px; text-align: center; }
+        .status-card.large { grid-column: span 4; background: #1a2126; border-color: #34495e; display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; }
+        .status-label { font-size: 10px; color: #95a5a6; margin-bottom: 2px; }
+        .status-value { font-size: 15px; font-weight: bold; color: #f39c12; font-family: 'Courier New', monospace; }
+        .eval-title { font-size: 13px; font-weight: bold; color: #ecf0f1; }
+        .eval-score { font-size: 22px; font-weight: bold; font-family: 'Courier New', monospace; }
+
+        .slots { display: flex; gap: 8px; }
+        .slot { flex: 1; height: 40px; background: #2c3e50; border: 2px dashed #7f8c8d; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 12px; text-align: center; color: #95a5a6; cursor: pointer; }
+        .slot.active { border-color: #3498db; background: #1f364d; color: #fff; font-weight: bold; box-shadow: 0 0 8px rgba(52, 152, 219, 0.4); }
+        
+        /* 7列の高密度グリッド */
+        .pieces-bank { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; overflow: hidden; }
+        .piece-card { background: #2c3e50; padding: 4px 2px; border-radius: 6px; cursor: pointer; text-align: center; border: 1px solid transparent; display: flex; flex-direction: column; align-items: center; justify-content: space-between; transition: all 0.1s ease; min-height: 72px; }
+        .piece-card:hover { border-color: #3498db; background: #34495e; transform: translateY(-1px); }
+        
+        .mini-matrix { display: inline-block; margin-top: 2px; background: #1a252f; padding: 3px; border-radius: 4px; }
+        .mini-row { display: flex; justify-content: center; gap: 2px; margin-bottom: 2px; }
+        .mini-row:last-child { margin-bottom: 0; }
+        .mini-cell { width: 7px; height: 7px; background: #2c3e50; border-radius: 1px; }
+        .mini-cell.on { background: #f1c40f; }
+        
+        .key-badge { background: #e67e22; color: #fff; font-weight: bold; padding: 1px 4px; border-radius: 3px; font-size: 10px; margin-bottom: 1px; }
+        .piece-name { font-size: 9px; color: #bdc3c7; white-space: nowrap; scale: 0.85; }
+
+        /* ログエリアの改修 */
+        .log-container { display: flex; flex-direction: column; background: #0b0e11; border-radius: 6px; border: 1px solid #34495e; height: 140px; }
+        .log-status { background: #1a252f; padding: 6px 10px; font-weight: bold; font-size: 12px; color: #f1c40f; border-bottom: 1px solid #34495e; }
+        .log { padding: 10px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 11px; color: #ecf0f1; flex-grow: 1; white-space: pre-wrap; line-height: 1.4; scroll-behavior: smooth; }
+        .log-entry { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed #2c3e50; }
+        .log-time { color: #95a5a6; font-size: 10px; margin-right: 5px; }
+        .log-type-ai { color: #2ecc71; }
+        .log-type-sys { color: #3498db; }
+        .log-type-err { color: #e74c3c; }
+
+        .clear-btn { background: #c0392b; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; transition: 0.1s; }
+        .clear-btn:hover { background: #e74c3c; }
+        
+        .btn-group { display: flex; gap: 6px; }
+        .log-btn { background: #34495e; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 10px; transition: 0.1s; font-weight: bold; }
+        .log-btn:hover { background: #4e6a85; }
+        .log-btn.copy-btn { background: #2980b9; }
+        .log-btn.copy-btn:hover { background: #3498db; }
+        .log-btn.clear-log-btn { background: #7f8c8d; }
+        .log-btn.clear-log-btn:hover { background: #95a5a6; }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 Block Blast AI - ULTRA PRO V3</h1>
+    <div class="subtitle">コンボ絶対維持ロジック / 「123ターン戦術」＆「空き率20-30%」厳格管理版 + ログ簡単コピー機能</div>
+
+    <div class="container">
+        <div class="board-wrapper">
+            <div class="bank-title" style="width: 100%;">
+                <span>💻 盤面状況（ドラッグ描画）</span>
+                <button class="clear-btn" onclick="clearAllBoard()">🛑 盤面全消去</button>
+            </div>
+            <div id="board-grid" class="grid"></div>
+            
+            <div style="width: 100%; margin-top: 10px;">
+                <div class="bank-title">📊 拡張・現在の盤面リアルタイム解析</div>
+                <div class="status-dashboard">
+                    <div class="status-card large">
+                        <div>
+                            <span class="eval-title">🛡️ 盤面総合評価: </span>
+                            <span id="stat-eval-text" style="font-weight: bold; font-size: 14px;">安全</span>
+                        </div>
+                        <div id="stat-eval-score" class="eval-score">100点</div>
+                    </div>
+                    
+                    <div class="status-card">
+                        <div class="status-label">埋まり / 空き率</div>
+                        <div id="stat-filled-pct" class="status-value">0マス (100%)</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-label">3x3 死守スペース</div>
+                        <div id="stat-3x3" class="status-value">36 箇所</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-label">孤立穴 (致命 / 溝)</div>
+                        <div id="stat-holes" class="status-value">0 / 0</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-label">消去準備度 (5-6マス列)</div>
+                        <div id="stat-setup" class="status-value">0 列</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-label">表面の凹凸度</div>
+                        <div id="stat-bumpiness" class="status-value">平坦 (0)</div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-label">詰み危険度レベル</div>
+                        <div id="stat-danger" class="status-value">安全 (Lv.0)</div>
+                    </div>
+                    <div class="status-card" style="grid-column: span 2;">
+                        <div class="status-label">現在のブロック配置可能性</div>
+                        <div id="stat-placeable" class="status-value">手持ち未入力</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="bank-title">📥 1. 手持ちスロット (間違いはESCキーでリセット)</div>
+            <div id="slots-container" class="slots"></div>
+
+            <div class="bank-title">🧱 2. ブロック図鑑 (全51種類)</div>
+            <div id="pieces-bank" class="pieces-bank"></div>
+
+            <div class="bank-title">
+                <span>📜 3. AI 最適解ナビゲーション ＆ アクション履歴</span>
+                <div class="btn-group">
+                    <button class="log-btn copy-btn" onclick="copyLogs(this)">📋 ログをコピー</button>
+                    <button class="log-btn clear-log-btn" onclick="clearLogs()">🗑️ ログ消去</button>
+                </div>
+            </div>
+            
+            <div class="log-container">
+                <div id="live-status" class="log-status">💡 待機中：手元のブロックを3つ登録してください。</div>
+                <div id="log-history" class="log"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+let boardGrid = Array.from({ length: 8 }, () => Array(8).fill(0));
+let selectedPieces = [null, null, null];
+let activeSlot = 0;
+let bestSequence = null;
+let isDrawing = false;
+let drawMode = 1;
+
+// テキスト形式でのコピー用スタック
+let textLogHistory = [];
+
+const PIECE_PRESETS = [
+    { key: "1", name: "1x1マス", matrix: [[1]] },
+    { key: "2", name: "横2連", matrix: [[1, 1]] },
+    { key: "3", name: "横3連", matrix: [[1, 1, 1]] },
+    { key: "4", name: "横4連", matrix: [[1, 1, 1, 1]] },
+    { key: "5", name: "横5連", matrix: [[1, 1, 1, 1, 1]] },
+    { key: "q", name: "縦2連", matrix: [[1], [1]] },
+    { key: "w", name: "縦3連", matrix: [[1], [1], [1]] },
+    { key: "e", name: "縦4連", matrix: [[1], [1], [1], [1]] },
+    { key: "r", name: "縦5連", matrix: [[1], [1], [1], [1], [1]] },
+    { key: "a", name: "正方形 2x2", matrix: [[1, 1], [1, 1]] },
+    { key: "s", name: "正方形 3x3", matrix: [[1, 1, 1], [1, 1, 1], [1, 1, 1]] },
+    { key: "6", name: "長方形 2x3縦", matrix: [[1, 1], [1, 1], [1, 1]] },
+    { key: "7", name: "長方形 2x3横", matrix: [[1, 1, 1], [1, 1, 1]] },
+
+    { key: "d", name: "小L-0°", matrix: [[1, 0], [1, 1]] },
+    { key: "f", name: "小L-90°", matrix: [[1, 1], [1, 0]] },
+    { key: "g", name: "小L-180°", matrix: [[1, 1], [0, 1]] },
+    { key: "h", name: "小L-270°", matrix: [[0, 1], [1, 1]] },
+
+    { key: "", name: "小J-0°", matrix: [[0, 1], [1, 1]] },
+    { key: "", name: "小J-90°", matrix: [[1, 0], [1, 1]] },
+    { key: "", name: "小J-180°", matrix: [[1, 1], [1, 0]] },
+    { key: "", name: "小J-270°", matrix: [[1, 1], [0, 1]] },
+
+    { key: "j", name: "大L-0°", matrix: [[1, 0], [1, 0], [1, 1]] },
+    { key: "k", name: "大L-90°", matrix: [[1, 1, 1], [1, 0, 0]] },
+    { key: "l", name: "大L-180°", matrix: [[1, 1], [0, 1], [0, 1]] },
+    { key: "p", name: "大L-270°", matrix: [[0, 0, 1], [1, 1, 1]] },
+
+    { key: "", name: "大J-0°", matrix: [[0, 1], [0, 1], [1, 1]] },
+    { key: "", name: "大J-90°", matrix: [[1, 1, 1], [0, 0, 1]] },
+    { key: "", name: "大J-180°", matrix: [[1, 1], [1, 0], [1, 0]] },
+    { key: "", name: "大J-270°", matrix: [[1, 0, 0], [1, 1, 1]] },
+
+    { key: "z", name: "T字 ⬇️", matrix: [[1, 1, 1], [0, 1, 0]] },
+    { key: "x", name: "T字 ⬆️", matrix: [[0, 1, 0], [1, 1, 1]] },
+    { key: "c", name: "T字 ➡️", matrix: [[1, 0], [1, 1], [1, 0]] },
+    { key: "v", name: "T字 ⬅️", matrix: [[0, 1], [1, 1], [0, 1]] },
+
+    { key: "b", name: "Z階段 横", matrix: [[1, 1, 0], [0, 1, 1]] },
+    { key: "n", name: "S階段 横", matrix: [[0, 1, 1], [1, 1, 0]] },
+    { key: "m", name: "Z階段 縦", matrix: [[0, 1], [1, 1], [1, 0]] },
+    { key: "", name: "S階段 縦", matrix: [[1, 0], [1, 1], [0, 1]] },
+
+    { key: "", name: "コーナー ◣", matrix: [[1, 1, 1], [1, 0, 0], [1, 0, 0]] },
+    { key: "", name: "コーナー ◤", matrix: [[1, 1, 1], [0, 0, 1], [0, 0, 1]] },
+    { key: "", name: "コーナー 📐", matrix: [[1, 0, 0], [1, 0, 0], [1, 1, 1]] },
+    { key: "", name: "コーナー 🧪", matrix: [[0, 0, 1], [0, 0, 1], [1, 1, 1]] },
+
+    { key: "", name: "欠け 📐", matrix: [[1, 0], [1, 1]] }, 
+    { key: "", name: "欠け ◣", matrix: [[0, 1], [1, 1]] },
+    { key: "", name: "欠け ◤", matrix: [[1, 1], [0, 1]] },
+    { key: "", name: "欠け ➔", matrix: [[1, 1], [1, 0]] },
+
+    { key: "", name: "変則角 ◣", matrix: [[0, 1, 1], [0, 1, 0], [1, 1, 1]] },
+    { key: "", name: "変則角 ◤", matrix: [[1, 1, 0], [0, 1, 0], [1, 1, 1]] },
+    { key: "", name: "変則角 📐", matrix: [[1, 1, 1], [0, 1, 0], [0, 1, 1]] },
+    { key: "", name: "変則角 🧪", matrix: [[1, 1, 1], [0, 1, 0], [1, 1, 0]] },
+
+    { key: "", name: "十字型 ➕", matrix: [[0, 1, 0], [1, 1, 1], [0, 1, 0]] },
+    { key: "", name: "凸ミニ 横", matrix: [[0, 1, 0], [1, 1, 0]] }, 
+    { key: "", name: "凸ミニ 縦", matrix: [[1, 0], [1, 1], [1, 0]] }
+];
+
+window.onload = function() {
+    buildBoardGrid();
+    buildSlots();
+    buildPieceCards();
+    setupEvents();
+    updateLiveDashboard();
+    addLog("システムが正常に起動しました。", "sys");
+};
+
+// --- ログ管理用関数 ---
+function addLog(message, type = 'ai') {
+    const historyBox = document.getElementById('log-history');
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    
+    // 画面表示用HTMLの追加
+    const entry = document.createElement('div');
+    entry.className = `log-entry log-type-${type}`;
+    entry.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message.replace(/\n/g, '<br>')}`;
+    historyBox.appendChild(entry);
+    
+    // クリップボードコピー用プレーンテキストの蓄積
+    textLogHistory.push(`[${timeStr}] ${message}`);
+    
+    historyBox.scrollTop = historyBox.scrollHeight;
+}
+
+function updateLiveStatus(message, color = '#f1c40f') {
+    const statusBox = document.getElementById('live-status');
+    statusBox.innerText = message;
+    statusBox.style.color = color;
+}
+
+function clearLogs() {
+    document.getElementById('log-history').innerHTML = '';
+    textLogHistory = [];
+    addLog("ログをクリアしました。", "sys");
+}
+
+// クリップボード簡単コピー機能
+function copyLogs(buttonElement) {
+    if (textLogHistory.length === 0) {
+        alert("コピーするログがありません。");
+        return;
+    }
+    
+    const fullText = textLogHistory.join("\n\n");
+    
+    navigator.clipboard.writeText(fullText).then(() => {
+        const originalText = buttonElement.innerText;
+        buttonElement.innerText = "✅ コピー完了！";
+        buttonElement.style.background = "#2ecc71";
+        
+        setTimeout(() => {
+            buttonElement.innerText = originalText;
+            buttonElement.style.background = ""; // スタイルを元に戻す
+        }, 1500);
+    }).catch(err => {
+        console.error("コピー失敗:", err);
+        alert("コピーに失敗しました。ブラウザの権限を確認してください。");
+    });
+}
+// ----------------------
+
+function buildBoardGrid() {
+    const grid = document.getElementById('board-grid'); grid.innerHTML = '';
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'bc'; cell.id = `bc-${r}-${c}`;
+            cell.addEventListener('mousedown', () => { isDrawing = true; drawMode = boardGrid[r][c] === 1 ? 0 : 1; toggleCell(r, c); });
+            cell.addEventListener('mouseenter', () => { if (isDrawing) toggleCell(r, c); });
+            grid.appendChild(cell);
+        }
+    }
+}
+
+function toggleCell(r, c) { 
+    boardGrid[r][c] = drawMode; 
+    clearHints();
+    renderBoard(); 
+    runAI(); 
+}
+
+function renderBoard() {
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.getElementById(`bc-${r}-${c}`);
+            if (boardGrid[r][c] === 1) cell.className = 'bc filled';
+            else cell.className = 'bc';
+        }
+    }
+    updateLiveDashboard();
+}
+
+function updateLiveDashboard() {
+    let filledCount = 0;
+    let fatalHoles = 0; 
+    let deadEnds = 0;   
+    let spaceFor3x3 = 0;
+    let setupRowsCols = 0;
+
+    let rowCounts = Array(8).fill(0);
+    let colCounts = Array(8).fill(0);
+    let columnHeights = Array(8).fill(0);
+    
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if (boardGrid[r][c] === 1) {
+                filledCount++;
+                rowCounts[r]++;
+                colCounts[c]++;
+                if (columnHeights[c] === 0) {
+                    columnHeights[c] = 8 - r;
+                }
+            } else {
+                let up = (r === 0 || boardGrid[r-1][c] === 1) ? 1 : 0;
+                let down = (r === 7 || boardGrid[r+1][c] === 1) ? 1 : 0;
+                let left = (c === 0 || boardGrid[r][c-1] === 1) ? 1 : 0;
+                let right = (c === 7 || boardGrid[r][c+1] === 1) ? 1 : 0;
+                let walls = up + down + left + right;
+                if (walls === 4) fatalHoles++;
+                else if (walls === 3) deadEnds++;
+            }
+            
+            if (r <= 5 && c <= 5) {
+                let canFit = true;
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        if (boardGrid[r+i][c+j] === 1) { canFit = false; break; }
+                    }
+                    if (!canFit) break;
+                }
+                if (canFit) spaceFor3x3++;
+            }
+        }
+    }
+
+    for (let i = 0; i < 8; i++) {
+        if (rowCounts[i] === 5 || rowCounts[i] === 6) setupRowsCols++;
+        if (colCounts[i] === 5 || colCounts[i] === 6) setupRowsCols++;
+    }
+
+    let bumpiness = 0;
+    for (let c = 0; c < 7; c++) {
+        bumpiness += Math.abs(columnHeights[c] - columnHeights[c+1]);
+    }
+
+    let activePiecesCount = selectedPieces.filter(p => p !== null).length;
+    let placeableText = "手持ち未入力";
+    if (activePiecesCount > 0) {
+        let anyPlaceable = false;
+        selectedPieces.forEach(p => {
+            if (!p) return;
+            for (let r = 0; r <= 8 - p.matrix.length; r++) {
+                for (let c = 0; c <= 8 - p.matrix[0].length; c++) {
+                    if (canPlace(boardGrid, p.matrix, r, c)) anyPlaceable = true;
+                }
+            }
+        });
+        placeableText = anyPlaceable ? "配置可能物件あり" : "手持ち配置不可！";
+    }
+
+    let emptyPct = (((64 - filledCount) / 64) * 100).toFixed(1);
+
+    let score = 100;
+    score -= fatalHoles * 25;
+    score -= deadEnds * 8;
+    if (spaceFor3x3 === 0) score -= 40; 
+    
+    if (filledCount > 51) score -= (filledCount - 51) * 5; 
+    else if (filledCount < 45) score -= (45 - filledCount) * 0.5;
+
+    score -= bumpiness * 1.5;
+    score += setupRowsCols * 3;
+    
+    score = Math.max(0, Math.min(100, Math.round(score)));
+
+    let evalText = "安全";
+    let dangerText = "安全 (Lv.0)";
+    let dangerColor = "#2ecc71";
+
+    if (score >= 85) { evalText = "👑 極めて健全"; dangerText = "安全 (Lv.0)"; dangerColor = "#2ecc71"; }
+    else if (score >= 70) { evalText = "🟢 良好"; dangerText = "注意 (Lv.1)"; dangerColor = "#2ecc71"; }
+    else if (score >= 50) { evalText = "🟡 警告 (凹凸・穴あり)"; dangerText = "警戒 (Lv.2)"; dangerColor = "#f1c40f"; }
+    else if (score >= 30) { evalText = "🟠 危険 (手詰まり寸前)"; dangerText = "深刻 (Lv.3)"; dangerColor = "#e67e22"; }
+    else { evalText = "🚨 崩壊状態 (即死リスク)"; dangerText = "致命的 (Lv.4)"; dangerColor = "#e74c3c"; }
+
+    document.getElementById('stat-eval-score').innerText = `${score}点`;
+    document.getElementById('stat-eval-text').innerText = evalText;
+    document.getElementById('stat-eval-text').style.color = dangerColor;
+    document.getElementById('stat-eval-score').style.color = dangerColor;
+
+    document.getElementById('stat-filled-pct').innerText = `${filledCount}マス (${emptyPct}%)`;
+    document.getElementById('stat-3x3').innerText = `${spaceFor3x3} 箇所`;
+    document.getElementById('stat-holes').innerText = `${fatalHoles} / ${deadEnds}`;
+    document.getElementById('stat-setup').innerText = `${setupRowsCols} ライン`;
+    
+    let bumpText = bumpiness === 0 ? "平坦 (0)" : (bumpiness <= 5 ? `軽微 (${bumpiness})` : `激しい (${bumpiness})`);
+    document.getElementById('stat-bumpiness').innerText = bumpText;
+    document.getElementById('stat-danger').innerText = dangerText;
+    document.getElementById('stat-placeable').innerText = placeableText;
+
+    document.getElementById('stat-filled-pct').style.color = (filledCount >= 45 && filledCount <= 51) ? '#2ecc71' : (filledCount > 51 ? '#e74c3c' : '#f39c12');
+    document.getElementById('stat-3x3').style.color = spaceFor3x3 > 0 ? '#2ecc71' : '#e74c3c';
+    document.getElementById('stat-holes').style.color = (fatalHoles > 0 || deadEnds > 2) ? '#e74c3c' : '#2ecc71';
+    document.getElementById('stat-bumpiness').style.color = bumpiness > 7 ? '#e67e22' : '#2ecc71';
+    document.getElementById('stat-danger').style.color = dangerColor;
+    document.getElementById('stat-placeable').style.color = placeableText.includes("不可") ? '#e74c3c' : '#2ecc71';
+}
+
+function clearHints() {
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const cell = document.getElementById(`bc-${r}-${c}`);
+            cell.classList.remove('hint-1', 'hint-2', 'hint-3');
+            cell.innerText = "";
+        }
+    }
+}
+
+function clearAllBoard() {
+    boardGrid = Array.from({ length: 8 }, () => Array(8).fill(0));
+    bestSequence = null;
+    clearHints();
+    renderBoard();
+    runAI();
+    addLog("🛑 盤面を全消去しました。", "sys");
+}
+
+function buildSlots() {
+    const container = document.getElementById('slots-container'); container.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+        const slot = document.createElement('div');
+        slot.className = `slot ${i === activeSlot ? 'active' : ''}`;
+        slot.id = `slot-${i}`;
+        slot.innerText = selectedPieces[i] ? `${selectedPieces[i].name}` : `[スロット ${i+1}]`;
+        slot.addEventListener('click', () => { activeSlot = i; updateSlotHighlight(); });
+        container.appendChild(slot);
+    }
+}
+
+function updateSlotHighlight() {
+    for (let i = 0; i < 3; i++) {
+        const slot = document.getElementById(`slot-${i}`);
+        if(slot) {
+            i === activeSlot ? slot.classList.add('active') : slot.classList.remove('active');
+        }
+    }
+}
+
+function buildPieceCards() {
+    const container = document.getElementById('pieces-bank'); container.innerHTML = '';
+    PIECE_PRESETS.forEach(piece => {
+        const card = document.createElement('div'); card.className = 'piece-card';
+        const badgeHTML = piece.key ? `<div class="key-badge">${piece.key.toUpperCase()}</div>` : `<div class="key-badge" style="background:#7f8c8d; font-size:9px; padding:1px 3px;">🖱️選択</div>`;
+        card.innerHTML = `${badgeHTML}<div class="piece-name">${piece.name}</div>`;
+        
+        const visual = document.createElement('div'); visual.className = 'mini-matrix';
+        piece.matrix.forEach(row => {
+            const rDiv = document.createElement('div'); rDiv.className = 'mini-row';
+            row.forEach(cell => {
+                const cDiv = document.createElement('div'); cDiv.className = `mini-cell ${cell === 1 ? 'on' : ''}`;
+                rDiv.appendChild(cDiv);
+            });
+            visual.appendChild(rDiv);
+        });
+        card.appendChild(visual);
+        card.addEventListener('click', () => { selectPiece(piece); });
+        container.appendChild(card);
+    });
+}
+
+function selectPiece(piece) {
+    selectedPieces[activeSlot] = piece; buildSlots();
+    let nextSlot = selectedPieces.findIndex(p => p === null);
+    if (nextSlot !== -1) { activeSlot = nextSlot; } 
+    updateSlotHighlight();
+    runAI();
+}
+
+function applyBestSequence() {
+    if (!bestSequence) return;
+    
+    let totalLinesCleared = 0;
+    
+    bestSequence.forEach((step, idx) => {
+        const matrix = step.matrix;
+        for (let i = 0; i < matrix.length; i++) {
+            for (let j = 0; j < matrix[0].length; j++) {
+                if (matrix[i][j] === 1) boardGrid[step.r + i][step.c + j] = 1;
+            }
+        }
+        totalLinesCleared += clearLinesAndCount(boardGrid);
+    });
+    
+    addLog(`✅ スペースキーで配置を適用しました (コンボ継続, 消去ライン計: ${totalLinesCleared})`, "sys");
+    
+    selectedPieces = [null, null, null];
+    activeSlot = 0;
+    bestSequence = null;
+    buildSlots();
+    clearHints();
+    renderBoard();
+    updateLiveStatus("💡 次の3つのブロックを入力してください。", "#f1c40f");
+}
+
+function setupEvents() {
+    window.addEventListener('mouseup', () => { isDrawing = false; });
+    window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        const key = e.key.toLowerCase();
+        
+        if (key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            if (bestSequence) applyBestSequence();
+            return;
+        }
+        if (key === 'escape') {
+            e.preventDefault();
+            selectedPieces = [null, null, null]; activeSlot = 0;
+            bestSequence = null;
+            buildSlots(); clearHints(); renderBoard();
+            addLog("🔄 手持ちブロックをリセットしました。", "sys");
+            updateLiveStatus("💡 ブロックを入力してください。", "#f1c40f");
+            return;
+        }
+        
+        const found = PIECE_PRESETS.find(p => p.key !== "" && p.key === key);
+        if (found) selectPiece(found);
+    });
+}
+
+function runAI() {
+    clearHints();
+    if (selectedPieces.some(p => p === null)) {
+        bestSequence = null;
+        let count = selectedPieces.filter(p=>p===null).length;
+        updateLiveStatus(`💡 あと ${count} つのブロックを登録してください。`, "#f1c40f");
+        return;
+    }
+    
+    let bestScore = -9999999; 
+    bestSequence = null;
+
+    const orders = [[0,1,2], [0,2,1], [1,0,2], [1,2,0], [2,0,1], [2,1,0]];
+    let initialCombo = 1; 
+    orders.forEach(order => { simulateStep(boardGrid, order, 0, [], 0, initialCombo); });
+
+    function simulateStep(currentGrid, order, stepIndex, currentSeq, accumulatedScore, currentCombo) {
+        if (stepIndex === 3) {
+            let boardEval = evaluateBoard(currentGrid, currentCombo);
+            let finalScore = boardEval; 
+            
+            if (finalScore > bestScore) { 
+                bestScore = finalScore; 
+                bestSequence = JSON.parse(JSON.stringify(currentSeq));
+            }
+            return;
+        }
+        
+        const slotId = order[stepIndex]; 
+        const piece = selectedPieces[slotId]; 
+        const matrix = piece.matrix;
+        
+        for (let r = 0; r <= 8 - matrix.length; r++) {
+            for (let c = 0; c <= 8 - matrix[0].length; c++) {
+                if (canPlace(currentGrid, matrix, r, c)) {
+                    let nextGrid = currentGrid.map(row => [...row]);
+                    for (let i = 0; i < matrix.length; i++) {
+                        for (let j = 0; j < matrix[0].length; j++) { 
+                            if (matrix[i][j] === 1) nextGrid[r+i][c+j] = 1; 
+                        }
+                    }
+                    
+                    let gridBeforeClear = nextGrid.map(row => [...row]);
+                    let linesClearedThisStep = clearLinesAndCount(nextGrid);
+                    
+                    let nextCombo = currentCombo;
+                    if (linesClearedThisStep > 0) {
+                        nextCombo++;
+                    } else {
+                        nextCombo = 1; 
+                    }
+                    
+                    currentSeq.push({ slotId, r, c, matrix, gridBeforeClear });
+                    simulateStep(nextGrid, order, stepIndex + 1, currentSeq, 0, nextCombo);
+                    currentSeq.pop();
+                }
+            }
+        }
+    }
+
+    renderBoard();
+    
+    if (bestSequence) {
+        updateLiveStatus("✨ 最適手（コンボ継続＆生存特化ルート）を発見しました！", "#2ecc71");
+        
+        let msg = `【AI提案ルート】\n`;
+        const hintClasses = ['hint-1', 'hint-2', 'hint-3'];
+        const emojis = ['🟢', '🟡', '🔵'];
+        
+        bestSequence.forEach((step, idx) => {
+            msg += `${emojis[idx]} [${selectedPieces[step.slotId].name}] ➔ ${step.r + 1}行 ${step.c + 1}列へ\n`;
+            
+            for (let i = 0; i < step.matrix.length; i++) {
+                for (let j = 0; j < step.matrix[0].length; j++) {
+                    if (step.matrix[i][j] === 1) {
+                        const cell = document.getElementById(`bc-${step.r + i}-${step.c + j}`);
+                        if (cell) {
+                            cell.className = `bc ${hintClasses[idx]}`;
+                            if(cell.innerText === "") cell.innerText = idx + 1;
+                        }
+                    }
+                }
+            }
+        });
+        
+        addLog(msg, "ai");
+    } else {
+        updateLiveStatus("❌ 置ける組み合わせがありません！ゲームオーバー（詰み）状態です。", "#e74c3c");
+        addLog("【AI解析】配置可能なルートが見つかりません。詰み状態です。", "err");
+    }
+}
+
+function canPlace(grid, matrix, startR, startC) {
+    for (let i = 0; i < matrix.length; i++) {
+        for (let j = 0; j < matrix[0].length; j++) {
+            if (matrix[i][j] === 1 && grid[startR + i][startC + j] === 1) return false;
+        }
+    }
+    return true;
+}
+
+function clearLinesAndCount(grid) {
+    let rowClears = []; let colClears = [];
+    for (let r = 0; r < 8; r++) if (grid[r].every(v => v === 1)) rowClears.push(r);
+    for (let c = 0; c < 8; c++) if (grid.every(row => row[c] === 1)) colClears.push(c);
+    rowClears.forEach(r => grid[r].fill(0));
+    colClears.forEach(c => { for (let r = 0; r < 8; r++) grid[r][c] = 0; });
+    return rowClears.length + colClears.length;
+}
+
+function evaluateBoard(grid, currentCombo) {
+    let filledCount = 0;
+    let fatalHoles = 0; 
+    let deadEnds = 0;   
+    let setupBonus = 0; 
+
+    let rowCounts = Array(8).fill(0);
+    let colCounts = Array(8).fill(0);
+    
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if (grid[r][c] === 1) {
+                filledCount++;
+                rowCounts[r]++;
+                colCounts[c]++;
+            } else {
+                let up = (r === 0 || grid[r-1][c] === 1) ? 1 : 0;
+                let down = (r === 7 || grid[r+1][c] === 1) ? 1 : 0;
+                let left = (c === 0 || grid[r][c-1] === 1) ? 1 : 0;
+                let right = (c === 7 || grid[r][c+1] === 1) ? 1 : 0;
+                let walls = up + down + left + right;
+                if (walls === 4) fatalHoles++;
+                else if (walls === 3) deadEnds++;
+            }
+        }
+    }
+
+    for (let i = 0; i < 8; i++) {
+        if (rowCounts[i] === 5 || rowCounts[i] === 6) setupBonus += 60;
+        if (colCounts[i] === 5 || colCounts[i] === 6) setupBonus += 60;
+    }
+
+    let fillPenalty = 0;
+    if (filledCount > 51) fillPenalty = (filledCount - 51) * 100; 
+    else if (filledCount < 45) fillPenalty = (45 - filledCount) * 10; 
+
+    let spaceFor3x3 = 0;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if (r <= 5 && c <= 5) {
+                let canFit = true;
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < 3; j++) {
+                        if (grid[r+i][c+j] === 1) { canFit = false; break; }
+                    }
+                    if (!canFit) break;
+                }
+                if (canFit) spaceFor3x3++;
+            }
+        }
+    }
+    let safety3x3Bonus = (spaceFor3x3 > 0) ? 300 : -2000;
+
+    let comboCarryBonus = (currentCombo > 1) ? (currentCombo * 1000) : 0;
+
+    let score = comboCarryBonus
+                + setupBonus
+                - fillPenalty
+                - (fatalHoles * 500) 
+                - (deadEnds * 150)
+                + safety3x3Bonus;
+                
+    return score;
+}
+</script>
+</body>
+</html>
